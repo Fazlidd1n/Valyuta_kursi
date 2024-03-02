@@ -39,39 +39,52 @@ class Course(Base):
     __tablename__ = "courses"
     id: Mapped[int] = mapped_column(__type_pos=BIGINT, autoincrement=True, primary_key=True)
     course_name: Mapped[str] = mapped_column()
-    course_price: Mapped[float] = mapped_column()
+    course_buy: Mapped[float] = mapped_column()
+    course_sell: Mapped[float] = mapped_column()
 
     def insert(self, data: dict):
         session.execute(
             insert(Course),
             [
-                {"course_name": "USD", "course_price": float(data.get("USD").replace(" ", ""))},
-                {"course_name": "RUB", "course_price": float(data.get("RUB").replace(" ", ""))},
-                {"course_name": "EUR", "course_price": float(data.get("EUR").replace(" ", ""))},
+                {"course_name": "USD", "course_buy": float(data.get("USD")[0]),
+                 "course_sell": float(data.get("USD")[1])},
+                {"course_name": "EUR", "course_buy": float(data.get("EUR")[0]),
+                 "course_sell": float(data.get("EUR")[1])},
+                {"course_name": "RUB", "course_buy": float(data.get("RUB")[0]),
+                 "course_sell": float(data.get("RUB")[1])},
+                {"course_name": "GBP", "course_buy": float(data.get("GBP")[0]),
+                 "course_sell": float(data.get("GBP")[1])},
+                {"course_name": "CHF", "course_buy": float(data.get("CHF")[0]),
+                 "course_sell": float(data.get("CHF")[1])},
+                {"course_name": "JPY", "course_buy": float(data.get("JPY")[0]),
+                 "course_sell": float(data.get("JPY")[1])},
+                {"course_name": "KZT", "course_buy": float(data.get("KZT")[0]),
+                 "course_sell": float(data.get("KZT")[1])},
             ]
         )
         session.commit()
 
     def select(self):
-        course_data = session.execute(select(Course.course_name, Course.course_price)).fetchall()
+        course_data = session.execute(select(Course.course_name, Course.course_buy, Course.course_sell)).fetchall()
         course_datas = {}
         for i in course_data:
-            course_datas[i[0]] = i[1]
+            course_datas[i[0]] = [i[1], i[2]]
         return course_datas
 
     def select_currencies(self):
-        response = requests.get("https://bank.uz/uz/currency")
+        response = requests.get("https://nbu.uz/uz/exchange-rates/")
         soup = BeautifulSoup(response.text, 'html.parser')
         s = 0
         currencies = {}
-        for i in soup.find_all("li", 'nav-item'):
-            if s == 3:
+        for i in soup.find_all("tr"):
+            if s == 8:
                 break
-            currency_elements = i.find_all('span', class_='medium-text')
-            for j in range(0, len(currency_elements), 3):
-                currency_code = currency_elements[j].text.strip()
-                currency_rate = currency_elements[j + 1].text.strip()
-                currencies[currency_code] = currency_rate
+            currency_elements = i.find_all('td')
+            if currency_elements:
+                currency_name = currency_elements[0].text.split(', ')[1].strip()
+                currency_buy = currency_elements[1].text
+                currency_sell = currency_elements[2].text
+                currencies[currency_name] = [currency_buy, currency_sell]
             s += 1
         return currencies
 
@@ -79,9 +92,11 @@ class Course(Base):
         currencies = Course.select_currencies(Base)
         for i in currencies.keys():
             query = update(Course).where(Course.course_name == i).values(
-                course_price=float(currencies.get(i).replace(" ", "")))
+                course_buy=float(currencies.get(i)[0]),
+                course_sell=float(currencies.get(i)[1]))
             session.execute(query)
             session.commit()
+
 
 Base.metadata.create_all(engine)
 
